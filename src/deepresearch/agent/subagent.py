@@ -74,7 +74,7 @@ async def finalize_finding_node(state: SubagentState, runtime) -> dict:
         span_id = current_span_id_hex()
         data, usage = await ctx.llm.complete_structured(
             model=ctx.config.worker_model, system=system, user_content=user_content,
-            response_model=FindingDraft, max_tokens=2048,
+            response_model=FindingDraft, max_tokens=4096,
         )
     latency_ms = (time.monotonic() - start) * 1000
     _record(
