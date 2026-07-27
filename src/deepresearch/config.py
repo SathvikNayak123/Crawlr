@@ -33,8 +33,8 @@ class BudgetConfig:
 
     max_replans: int = 2
     max_total_tokens: int = 200_000
-    max_wall_clock_seconds: float = 600.0
-    max_usd: float = 5.0
+    max_wall_clock_seconds: float = 1200.0
+    max_usd: float = 1.0
 
 
 @dataclass
