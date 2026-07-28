@@ -43,12 +43,12 @@ python -m deepresearch.cli "Which came first, the Eiffel Tower or the Statue of 
 - **CI regression gate** — every PR runs a smoke eval against a stored
   baseline and fails on accuracy/citation/latency regressions.
 - **Every default is a measured ablation** — rerank on/off and cache on/off
-  are backed by real numbers in `docs/RESULTS.md`, including one case where
-  a single run gave the wrong answer and a mandated 3x repeat reversed it.
-  The old plan-first-vs-ReAct mode flag was itself an ablation finding: its
-  reversal (react_agent's single-run accuracy edge didn't survive a 3x
-  repeat) is why the topology was rebuilt into the one unified DAG graph
-  above instead of shipping two competing modes (`docs/DESIGN.md` §11).
+  are backed by real numbers, including one case where a single run gave the
+  wrong answer and a mandated 3x repeat reversed it. The old
+  plan-first-vs-ReAct mode flag was itself an ablation finding: its reversal
+  (react_agent's single-run accuracy edge didn't survive a 3x repeat) is why
+  the topology was rebuilt into the one unified DAG graph above instead of
+  shipping two competing modes.
 
 ## Setup
 
@@ -64,11 +64,3 @@ pip install -e ".[dev,eval]"
 docker compose up --build -d   # starts the API, Postgres, Redis, Prometheus, Grafana
 # (equivalent to `make up`, if you have make installed)
 ```
-
-## Learn more
-
-- `docs/DESIGN.md` — architecture, decision table with alternatives
-  considered, eval design, run-store schema.
-- `docs/RESULTS.md` — every claim above backed by real numbers: raw
-  configs, ablation results, bugs found and fixed, a live AWS deploy, full
-  eval runs.

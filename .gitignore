@@ -52,10 +52,17 @@ results/*
 !results/ci_gate_comment.md
 
 # Terraform: state/plan binaries and real secrets never belong in git.
-# docs/proof/plan.txt is a redacted *text* export, committed deliberately.
 infra/.terraform/
 infra/*.tfstate
 infra/*.tfstate.*
 infra/terraform.tfvars
 infra/tfplan
 infra/*.tfplan
+
+# Kept local-only (used by Claude Code / as working notes), not published to
+# GitHub. docs/assets/ is exempt so the README demo image still renders.
+/CLAUDE.md
+docs/AUDIT_REPORT.md
+docs/DESIGN.md
+docs/RESULTS.md
+docs/proof/

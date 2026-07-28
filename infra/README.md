@@ -1,8 +1,7 @@
 # infra — AWS deployment (Terraform)
 
-ECS Fargate behind an ALB. See `docs/DESIGN.md` decision rows 12-13 for why
-Fargate over EKS/EC2 and why containers-in-task over RDS/ElastiCache by
-default. This doc is the how; that doc is the why.
+ECS Fargate behind an ALB, chosen over EKS/EC2, with containers-in-task over
+RDS/ElastiCache by default.
 
 ## Prerequisites (manual, before the first `apply`)
 
@@ -137,5 +136,4 @@ are AWS actions with no resource-level ARN support.
 To capture the two evidence artifacts the design calls for: a clean push to
 `main` gives you **one hands-free deploy** run; pushing a commit whose image
 fails `/health` (e.g. a bad `CMD`) gives you **one auto-rollback** run (job goes
-red, service returns to the prior revision) — link both run URLs in
-`docs/RESULTS.md`.
+red, service returns to the prior revision).
