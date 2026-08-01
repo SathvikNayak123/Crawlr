@@ -14,9 +14,8 @@ enforcement, and a Postgres run store behind it.
 
 ## Demo
 
-https://github.com/SathvikNayak123/Crawlr/raw/main/docs/assets/demo.mp4
+https://github.com/user-attachments/assets/6fe5a325-45c5-4779-9118-eb5255924921
 
-![demo](docs/assets/demo.png)
 
 ```bash
 python -m deepresearch.cli "Which came first, the Eiffel Tower or the Statue of Liberty?"
