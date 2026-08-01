@@ -48,7 +48,7 @@ from pydantic import BaseModel, Field
 from deepresearch.agent import planner, synthesis
 from deepresearch.agent.budget import budget_status as _budget_status
 from deepresearch.agent.dag import topological_order
-from deepresearch.agent.react_agent import _record
+from deepresearch.agent.react_agent import _record, _record_start
 from deepresearch.agent.subagent import run_subagent
 from deepresearch.backends.base import SearchBackend
 from deepresearch.config import RunConfig
@@ -98,17 +98,38 @@ async def _run_stage(
     *,
     runtime: Runtime[Any],
     input_summary: dict | None = None,
+    node_id: str | None = None,
+    wave: int | None = None,
     **attrs,
 ) -> tuple[Any, Any]:
     """Opens the stage span (nested under the ambient "run" span kept open
     for the whole graph execution in orchestrator.py), records the
-    trajectory row, and emits the stage_complete event via the graph's
-    stream writer."""
+    trajectory row, and emits a stage_start (before `coro` runs) + a
+    stage_complete (after) event pair via the graph's stream writer, both
+    tagged with `stage_id` (the span_id, shared by both halves) so a live
+    consumer can flip a spinner to a checkmark on the matching stage_id
+    instead of just appending rows. `node_id`/`wave` are opaque passthrough
+    for the UI to group parallel dispatches (None for whole-run stages like
+    plan/synthesis/reflection, which have neither). stage_complete's
+    `output` is the same dict already written to the trajectory row -- not
+    previously forwarded to the stream, which is why a live trace showed
+    "subagent:n1" and nothing else about what it found."""
     recorder = runtime.context.recorder
     start_dt = datetime.now(timezone.utc)
     start = time.monotonic()
     with stage_span(name, **attrs) as span:
         span_id = current_span_id_hex()
+        runtime.stream_writer(
+            {
+                "type": "stage_start",
+                "stage": stage,
+                "name": name,
+                "stage_id": span_id,
+                "node_id": node_id,
+                "wave": wave,
+                "input": input_summary,
+            }
+        )
         result, usage = await coro
         latency_ms = (time.monotonic() - start) * 1000
         span.set_attribute("llm.tokens_in", usage.input_tokens)
@@ -117,13 +138,14 @@ async def _run_stage(
         span.set_attribute("latency_ms", latency_ms)
     end_dt = datetime.now(timezone.utc)
 
+    output = result.model_dump() if hasattr(result, "model_dump") else None
     recorder.record_trajectory(
         span_id=span_id,
         parent_span_id=runtime.context.run_span_id,
         stage=stage,
         name=name,
         input=input_summary,
-        output=result.model_dump() if hasattr(result, "model_dump") else None,
+        output=output,
         tokens_in=usage.input_tokens,
         tokens_out=usage.output_tokens,
         cost_usd=usage.cost_usd,
@@ -136,10 +158,14 @@ async def _run_stage(
             "type": "stage_complete",
             "stage": stage,
             "name": name,
+            "stage_id": span_id,
+            "node_id": node_id,
+            "wave": wave,
             "tokens_in": usage.input_tokens,
             "tokens_out": usage.output_tokens,
             "cost_usd": usage.cost_usd,
             "latency_ms": latency_ms,
+            "output": output,
         }
     )
     return result, usage
@@ -172,6 +198,15 @@ class MultihopState(TypedDict, total=False):
     # Plain flag (no reducer) -- reflection_node is never Send-fanned, only
     # one writer per superstep, so overwrite-on-write is exactly right here.
     should_continue: bool
+    # Incremented once per completed wave by supervisor_node (the join node
+    # after every "subagent" batch -- see its docstring) -- lets a live trace
+    # group parallel subagent dispatches by wave instead of showing them as
+    # an undifferentiated list. Annotated w/ operator.add for the same reason
+    # as reflection_iters above: supervisor_node always returns {"wave": 1}
+    # ("one more wave completed"), never the running total. The very first
+    # wave (dispatched straight from "plan", which never passes through
+    # supervisor_node) is wave 0 -- 0-indexed, same convention as `attempt`.
+    wave: Annotated[int, operator.add]
 
 
 class SubagentInput(TypedDict):
@@ -180,6 +215,7 @@ class SubagentInput(TypedDict):
     attempt: int
     feeds_hop: bool
     started_monotonic: float
+    wave: int
 
 
 @dataclass
@@ -242,6 +278,11 @@ async def _verify_finding(node: SubQuestion, finding: Finding, runtime: Runtime[
     start = time.monotonic()
     with stage_span(f"verify:{node.id}"):
         span_id = current_span_id_hex()
+        _record_start(
+            runtime, "verify", f"verify:{node.id}",
+            span_id=span_id, input_summary={"sub_question": node.question, "answer": finding.answer},
+            node_id=node.id,
+        )
         data, usage = await ctx.llm.complete_structured(
             model=ctx.config.reflection_model, system=load_prompt("hop_verify_v1.txt"),
             user_content=user_content, response_model=HopVerdict, max_tokens=512,
@@ -251,14 +292,15 @@ async def _verify_finding(node: SubQuestion, finding: Finding, runtime: Runtime[
         runtime, "verify", f"verify:{node.id}",
         input_summary={"sub_question": node.question}, output=data.model_dump(),
         usage=usage, latency_ms=latency_ms, start_dt=start_dt, end_dt=datetime.now(timezone.utc), span_id=span_id,
+        node_id=node.id,
     )
     return data.grounded, usage
 
 
 async def subagent_node(state: SubagentInput, runtime: Runtime[MultihopContext]) -> dict:
     ctx = runtime.context
-    node, context_facts, attempt, feeds_hop = (
-        state["node"], state["context_facts"], state["attempt"], state["feeds_hop"],
+    node, context_facts, attempt, feeds_hop, wave = (
+        state["node"], state["context_facts"], state["attempt"], state["feeds_hop"], state.get("wave", 0),
     )
     own_registry: dict[str, SourceRegistryEntry] = {}
 
@@ -270,7 +312,14 @@ async def subagent_node(state: SubagentInput, runtime: Runtime[MultihopContext])
             run_span_id=ctx.run_span_id, source_registry=own_registry,
             started_monotonic=state.get("started_monotonic", 0.0), source_id_prefix=f"{node.id}_r{attempt}",
         ),
-        runtime=runtime, input_summary={"question": node.question},
+        runtime=runtime,
+        input_summary={
+            "question": node.question,
+            "context_facts": context_facts or None,
+            "attempt": attempt,
+        },
+        node_id=node.id,
+        wave=wave,
     )
 
     update: dict = {
@@ -412,12 +461,31 @@ async def reflection_node(state: MultihopState, runtime: Runtime[MultihopContext
 # --------------------------------------------------------------------------
 
 
+async def supervisor_node(state: MultihopState, runtime: Runtime[MultihopContext]) -> dict:
+    """Pure join point: a static edge from "subagent" into this node
+    coalesces every branch of a Send-fanned-out wave into ONE call, seeing
+    the fully merged verified_ids/failed_ids -- unlike a conditional edge
+    wired directly off "subagent", which LangGraph invokes once PER BRANCH,
+    each seeing only its own write merged into base state. Confirmed by
+    direct experiment against this repo's installed langgraph version: that
+    per-branch invocation made supervisor_router (below) re-dispatch every
+    OTHER not-yet-verified node from each branch's narrow view, producing up
+    to N re-dispatches per node in an N-wide wave -- wasted subagent runs
+    that were silently deduped away by _ordered_findings' last-write-wins,
+    so the bug was invisible in final output, only in cost/latency/trace
+    noise. Readiness is decided entirely by supervisor_router below -- the
+    only thing this node itself contributes is the wave counter, incremented
+    once per completed wave for a live trace to group by."""
+    return {"wave": 1}
+
+
 def supervisor_router(state: MultihopState, runtime: Runtime[MultihopContext]):
     """The single dispatch point: used after "plan" (initial wave) and after
-    "subagent" (every subsequent wave). Computes which plan nodes are ready
-    (all depends_on verified, not already verified/failed) and fans them out
-    via Send; empty ready set (fully resolved, or stuck behind a failed
-    upstream) or a tripped budget both route to synthesis."""
+    "supervisor" (the join after every subsequent "subagent" wave). Computes
+    which plan nodes are ready (all depends_on verified, not already
+    verified/failed) and fans them out via Send; empty ready set (fully
+    resolved, or stuck behind a failed upstream) or a tripped budget both
+    route to synthesis."""
     if _budget_status(state, runtime.context.config.budget) is not None:
         return "synthesis"
 
@@ -433,6 +501,7 @@ def supervisor_router(state: MultihopState, runtime: Runtime[MultihopContext]):
 
     corrections = state.get("node_corrections", {})
     depended_on = {dep for n in plan_nodes for dep in n.depends_on}
+    wave = state.get("wave", 0)
     return [
         Send("subagent", {
             "node": n,
@@ -440,6 +509,7 @@ def supervisor_router(state: MultihopState, runtime: Runtime[MultihopContext]):
             "attempt": corrections.get(n.id, 0),
             "feeds_hop": n.id in depended_on,
             "started_monotonic": state.get("started_monotonic", 0.0),
+            "wave": wave,
         })
         for n in ready
     ]
@@ -472,12 +542,14 @@ def build_multihop_graph(checkpointer=None, interrupt_after=None):
     builder = StateGraph(MultihopState, context_schema=MultihopContext)
     builder.add_node("plan", plan_node)
     builder.add_node("subagent", subagent_node)
+    builder.add_node("supervisor", supervisor_node)
     builder.add_node("synthesis", synthesis_node)
     builder.add_node("reflection", reflection_node)
 
     builder.add_edge(START, "plan")
     builder.add_conditional_edges("plan", supervisor_router, ["subagent", "synthesis"])
-    builder.add_conditional_edges("subagent", supervisor_router, ["subagent", "synthesis"])
+    builder.add_edge("subagent", "supervisor")
+    builder.add_conditional_edges("supervisor", supervisor_router, ["subagent", "synthesis"])
     builder.add_edge("synthesis", "reflection")
     builder.add_conditional_edges("reflection", _reflection_route, ["subagent", "synthesis", END])
     return builder.compile(checkpointer=checkpointer, interrupt_after=interrupt_after)

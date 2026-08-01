@@ -41,10 +41,51 @@ class StubChatModel:
     def bind_tools(self, tools):
         return self
 
+    def bind(self, **kwargs):
+        return self
+
     async def ainvoke(self, messages):
         msg = self._scripted[min(self._i, len(self._scripted) - 1)]
         self._i += 1
         return msg
+
+
+class ToolChoiceRecordingChatModel:
+    """Like StubChatModel, but records the tool_choice each ainvoke() was
+    actually called under -- None if invoked directly on the base object
+    (the model's own "auto" default), or the kwargs dict from whichever
+    .bind(**kwargs) call produced the object ainvoke() was called on.
+    self.calls[i] is the record for the i-th ReAct step, in order."""
+
+    def __init__(self, scripted: list[AIMessage]) -> None:
+        self._scripted = scripted
+        self._i = 0
+        self.calls: list[dict | None] = []
+
+    def bind_tools(self, tools):
+        return self
+
+    def bind(self, **kwargs):
+        return _ToolChoiceBoundProxy(self, kwargs)
+
+    async def ainvoke(self, messages):
+        self.calls.append(None)
+        return self._next()
+
+    def _next(self) -> AIMessage:
+        msg = self._scripted[min(self._i, len(self._scripted) - 1)]
+        self._i += 1
+        return msg
+
+
+class _ToolChoiceBoundProxy:
+    def __init__(self, parent: ToolChoiceRecordingChatModel, kwargs: dict) -> None:
+        self._parent = parent
+        self._kwargs = kwargs
+
+    async def ainvoke(self, messages):
+        self._parent.calls.append(self._kwargs)
+        return self._parent._next()
 
 
 class StubFindingLLM:
@@ -92,6 +133,35 @@ async def test_run_subagent_returns_one_finding_with_entities_and_claims():
     assert len(finding.claims) == 1
     assert finding.claims[0].source_id == "n1_1"
     assert usage.input_tokens > 0
+
+
+@pytest.mark.asyncio
+async def test_agent_forces_search_tool_choice_on_first_step_only():
+    """Regression guard: a real run showed the model narrate the right
+    search plan in `content` but attach zero tool_calls on its very first
+    response, which _agent_route reads as "ready to finalize" -- ending the
+    loop after one step with nothing retrieved (agent/react_agent.py's
+    agent_node now forces tool_choice="search" on step 0 specifically to
+    close that gap). Step 1+ must stay on the model's own "auto" choice --
+    forcing every step would prevent it from ever legitimately deciding it
+    has gathered enough evidence to finalize."""
+    init_telemetry()
+    scripted = [_ai(tool_query="Mauro Scocco date of birth"), _ai(content="Found the date of birth")]
+    chat_model = ToolChoiceRecordingChatModel(scripted)
+    config = RunConfig(cache_enabled=False, rerank_enabled=False)
+    backend = LocalCorpusBackend.from_dicts(DOCS)
+    node = SubQuestion(id="n1", question="What is Mauro Scocco's date of birth?", depends_on=[])
+
+    await run_subagent(
+        node, "",
+        config=config, chat_model=chat_model, llm=StubFindingLLM(), search_backend=backend,
+        rerank_backend=None, recorder=RunRecorder(run_id="r-tool-choice"), run_span_id="span1",
+        source_registry={}, started_monotonic=time.monotonic(),
+    )
+
+    assert len(chat_model.calls) == 2  # step 0 (forced search), step 1 (finalize)
+    assert chat_model.calls[0] == {"tool_choice": {"type": "function", "function": {"name": "search"}}}
+    assert chat_model.calls[1] is None  # left on the model's own "auto" default
 
 
 @pytest.mark.asyncio

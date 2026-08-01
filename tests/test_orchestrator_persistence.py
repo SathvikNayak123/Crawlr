@@ -28,6 +28,9 @@ class StubChatModel:
     def bind_tools(self, tools):
         return self
 
+    def bind(self, **kwargs):
+        return self
+
     async def ainvoke(self, messages):
         self._turn += 1
         if self._turn == 1:
@@ -124,6 +127,65 @@ async def test_run_research_on_event_fires_for_every_stage(tmp_path, make_stub_l
     assert stages_in_order[-1] == "reflection"
     assert "subagent" in stages_in_order
     assert all(isinstance(e["latency_ms"], (int, float)) for e in stage_events)
+
+
+@pytest.mark.asyncio
+async def test_run_research_events_are_enriched_and_include_nested_subagent_stages(tmp_path, make_stub_llm):
+    """Phase 1 of the live-trace UI work: on_event must carry paired
+    stage_start/stage_complete events (correlated by stage_id, for a
+    spinner-to-checkmark UI), stage_complete must carry the actual `output`
+    (not just tokens/cost/latency -- previously the only thing a live trace
+    could show was "subagent:n1" and a dollar amount), and nested subagent
+    ReAct-loop stages (agent_step, finalize_finding -- each their own
+    compiled subgraph, invoked via ainvoke() in agent/subagent.py) must
+    reach on_event at all, which requires astream(..., subgraphs=True) in
+    orchestrator.py -- without it these stages are silently invisible to any
+    stream consumer even though they were always written to the trajectories
+    table (recorder is a plain shared object, unaffected by streaming)."""
+    init_telemetry()
+    db_url = f"sqlite+aiosqlite:///{tmp_path / 'orch_enriched_events_test.db'}"
+    config = RunConfig(
+        database_url=db_url, checkpoint_db_path=str(tmp_path / "checkpoints.sqlite"),
+        cache_enabled=False, rerank_enabled=False,
+    )
+    backend = LocalCorpusBackend.from_dicts(DOCS)
+    llm = make_stub_llm(seed=1)
+
+    events: list[dict] = []
+
+    async def on_event(event: dict) -> None:
+        events.append(event)
+
+    result = await run_research(
+        "What is the capital of France?", config=config, search_backend=backend, llm=llm,
+        chat_model=StubChatModel(), on_event=on_event,
+    )
+    assert result.status == RunStatus.COMPLETED
+
+    starts = [e for e in events if e["type"] == "stage_start"]
+    completes = [e for e in events if e["type"] == "stage_complete"]
+    assert starts  # previously didn't exist at all
+    stage_types = {e["stage"] for e in completes}
+    # agent_step/finalize_finding only reach on_event with subgraphs=True.
+    assert {"plan", "subagent", "agent_step", "finalize_finding", "synthesis", "reflection"} <= stage_types
+
+    # Every stage_complete's stage_id was announced by a matching stage_start
+    # first -- the pairing a spinner-to-checkmark UI depends on.
+    start_ids = {e["stage_id"] for e in starts}
+    for c in completes:
+        assert c["stage_id"] in start_ids
+
+    plan_complete = next(e for e in completes if e["stage"] == "plan")
+    assert plan_complete["output"]["sub_questions"][0]["id"] == "n1"
+
+    subagent_complete = next(e for e in completes if e["stage"] == "subagent")
+    assert subagent_complete["node_id"] == "n1"
+    assert subagent_complete["wave"] == 0
+    assert subagent_complete["output"]["node_id"] == "n1"
+    assert subagent_complete["output"]["answer"]  # the actual finding, not just a dollar figure
+
+    agent_step_complete = next(e for e in completes if e["stage"] == "agent_step")
+    assert agent_step_complete["node_id"] == "n1_r0"  # AgentContext.source_id_prefix
 
 
 @pytest.mark.asyncio

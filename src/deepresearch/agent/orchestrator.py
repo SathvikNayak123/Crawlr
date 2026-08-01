@@ -49,6 +49,7 @@ def _initial_state(question: str, run_started: float) -> MultihopState:
         "report": None,
         "reflection_iters": 0,
         "should_continue": False,
+        "wave": 0,
     }
 
 
@@ -134,7 +135,18 @@ async def run_research(
             # budget ceilings are handled specially, and the graph itself
             # routes around those (never raises), so there is nothing
             # budget-shaped left to catch at this level.
-            async for mode, chunk in graph.astream(
+            # subgraphs=True: each subagent's ReAct loop is its own compiled
+            # subgraph invoked via ainvoke() (agent/subagent.py) -- without
+            # this, its "custom" stream_writer events (agent_step,
+            # finalize_finding: agent/react_agent.py's _record/_record_start)
+            # never reach this astream loop at all, live or not (confirmed by
+            # direct experiment against this repo's installed langgraph
+            # version). With it, every stream_mode also carries a namespace
+            # tuple prefix -- () for the outer graph, ("subagent:<uuid>",)
+            # for a nested subgraph -- so "values" must be filtered to ns ==
+            # () below, or a nested subgraph's own (differently-shaped)
+            # state would clobber final_state.
+            async for ns, mode, chunk in graph.astream(
                 graph_input,
                 config={
                     "configurable": {"thread_id": run_id},
@@ -143,11 +155,12 @@ async def run_research(
                 },
                 context=run_context,
                 stream_mode=["custom", "values"],
+                subgraphs=True,
             ):
                 if mode == "custom":
                     if on_event is not None:
                         await on_event(chunk)
-                else:  # mode == "values"
+                elif ns == ():  # mode == "values", outer graph only
                     final_state = chunk
 
         iterations = final_state.get("reflection_iters", 0) + 1

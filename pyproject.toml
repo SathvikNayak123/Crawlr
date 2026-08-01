@@ -43,6 +43,17 @@ eval = [
     "datasets~=3.2",
     "fakeredis~=2.36",
 ]
+# DEEPRESEARCH_RERANK_BACKEND=bge_directml (rerank/bge_directml.py) -- not
+# installed by default, and not part of the base `dependencies` list above,
+# because it's a Windows-only DirectML accelerator: onnxruntime-directml has
+# no Linux wheels, so unconditionally requiring it would break every
+# non-Windows install (CI, the Docker image, macOS/Linux dev). The portable
+# "bge" backend (plain CrossEncoder, no onnxruntime) stays the code default;
+# this is an opt-in extra for Windows dev machines that set that env var.
+# Install with: pip install -e ".[directml]"
+directml = [
+    "onnxruntime-directml~=1.24; sys_platform == 'win32'",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -23,3 +23,11 @@ def test_rerank_can_be_toggled_via_overrides():
 
     cfg = RunConfig.from_overrides({"rerank_backend": "cohere"})
     assert cfg.rerank_backend == "cohere"
+
+
+def test_report_style_defaults_to_concise_and_is_overridable():
+    # "concise" is what eval/ci_baselines is scored against -- must stay the
+    # default so nothing in the eval harness silently changes behavior.
+    assert RunConfig().report_style == "concise"
+    cfg = RunConfig.from_overrides({"report_style": "report"})
+    assert cfg.report_style == "report"

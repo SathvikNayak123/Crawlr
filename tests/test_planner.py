@@ -15,13 +15,18 @@ from deepresearch.schemas import Plan, SubQuestion
 
 
 class StubPlannerLLM:
-    def __init__(self, nodes: list[dict]) -> None:
+    def __init__(self, nodes: list[dict], *, interpretation: str = "", strategy: str = "") -> None:
         self._nodes = nodes
+        self._interpretation = interpretation
+        self._strategy = strategy
 
     async def complete_structured(self, *, model, system, user_content, response_model, max_tokens=4096):
         usage = LLMUsage(input_tokens=10, output_tokens=10, cost_usd=0.0)
         assert response_model is Plan
-        return Plan(sub_questions=[SubQuestion(**n) for n in self._nodes]), usage
+        return Plan(
+            interpretation=self._interpretation, strategy=self._strategy,
+            sub_questions=[SubQuestion(**n) for n in self._nodes],
+        ), usage
 
 
 @pytest.mark.asyncio
@@ -30,6 +35,22 @@ async def test_single_lookup_yields_one_node():
     result, _ = await plan("What is the capital of France?", RunConfig(), llm)
     assert len(result.sub_questions) == 1
     assert result.sub_questions[0].depends_on == []
+
+
+@pytest.mark.asyncio
+async def test_plan_forwards_interpretation_and_strategy():
+    """Phase 2: interpretation/strategy are the live "how did it understand
+    the question, why decomposed this way" narration a UI trace shows before
+    any research starts -- plan() must pass them through from the LLM's Plan
+    unchanged, not drop them on the way to the truncated/validated result."""
+    llm = StubPlannerLLM(
+        [{"id": "n1", "question": "What is the capital of France?", "depends_on": []}],
+        interpretation="A single direct factual lookup.",
+        strategy="One node suffices; no dependencies needed.",
+    )
+    result, _ = await plan("What is the capital of France?", RunConfig(), llm)
+    assert result.interpretation == "A single direct factual lookup."
+    assert result.strategy == "One node suffices; no dependencies needed."
 
 
 @pytest.mark.asyncio

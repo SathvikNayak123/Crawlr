@@ -8,6 +8,10 @@ Produce:
     resolved, e.g. a name, date, or number). This is what a later,
     dependent sub-question will substitute into its own query, so keep it
     a precise value, not a full sentence.
+  - reasoning: one sentence on how you got to this answer from the retrieved
+    passages — e.g. which passage(s) it came from, or how you combined more
+    than one. Shown live to the user as this step completes, so write it as
+    a plain statement of what you found, not a preamble.
   - claims: every factual claim supporting the answer, each with the
     source_id it came from, a verbatim quote from that source, and a
     confidence (0-1).

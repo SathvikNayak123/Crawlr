@@ -14,6 +14,8 @@ enforcement, and a Postgres run store behind it.
 
 ## Demo
 
+https://github.com/SathvikNayak123/Crawlr/raw/main/docs/assets/demo.mp4
+
 ![demo](docs/assets/demo.png)
 
 ```bash

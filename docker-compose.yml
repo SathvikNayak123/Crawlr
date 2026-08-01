@@ -26,6 +26,14 @@ services:
       - postgres
     volumes:
       - ./trajectories:/app/trajectories
+      # Persists the self-hosted reranker's downloaded model weights
+      # (rerank/bge.py: BAAI/bge-reranker-v2-m3, ~2.2GB) across `app`
+      # container recreations -- without this, every recreate (e.g. an
+      # .env change picked up via `docker compose up -d`) re-downloads it
+      # from HuggingFace Hub from scratch, since the container filesystem
+      # is otherwise ephemeral. Confirmed live: this exact 2.2GB redownload
+      # is what made the first query after a recreate slow.
+      - hf_cache:/root/.cache/huggingface
 
   redis:
     image: redis:7-alpine
@@ -68,3 +76,4 @@ services:
 
 volumes:
   postgres_data:
+  hf_cache:

@@ -9,18 +9,23 @@
     color-scheme: light dark;
     --bg: #0b0d10;
     --panel: #14171c;
+    --panel-raised: #1a1e24;
     --border: #262b33;
     --text: #e6e9ef;
     --muted: #8b93a1;
     --accent: #5b8cff;
+    --accent-soft: rgba(91,140,255,0.14);
     --ok: #4caf7d;
+    --ok-soft: rgba(76,175,125,0.14);
     --warn: #d9a441;
     --err: #e0605a;
+    --code-bg: rgba(128,128,128,0.14);
   }
   @media (prefers-color-scheme: light) {
     :root {
       --bg: #f5f6f8;
       --panel: #ffffff;
+      --panel-raised: #f0f1f4;
       --border: #dde1e7;
       --text: #14171c;
       --muted: #5a6270;
@@ -75,59 +80,29 @@
     cursor: pointer;
   }
   button:disabled { opacity: 0.5; cursor: not-allowed; }
-  .panel {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 18px 20px;
-    margin-bottom: 16px;
-  }
-  .panel h2 {
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--muted);
-    margin: 0 0 12px;
+
+  /* ---- run header ---- */
+  .run-header { margin-bottom: 20px; }
+  .run-header h2 {
+    font-size: 1.15rem;
+    font-weight: 650;
+    margin: 0 0 8px;
+    line-height: 1.4;
   }
   .meta-row {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px 20px;
+    align-items: center;
+    gap: 8px 16px;
     font-size: 0.85rem;
     color: var(--muted);
   }
   .meta-row code {
-    background: rgba(128,128,128,0.15);
+    background: var(--code-bg);
     padding: 2px 6px;
     border-radius: 4px;
     font-size: 0.8rem;
   }
-  ul.trace { list-style: none; margin: 0; padding: 0; }
-  ul.trace li {
-    display: flex;
-    justify-content: space-between;
-    padding: 8px 0;
-    border-bottom: 1px solid var(--border);
-    font-size: 0.88rem;
-    animation: fadein 0.25s ease;
-  }
-  ul.trace li:last-child { border-bottom: none; }
-  ul.trace .stage-name { font-weight: 600; }
-  ul.trace .stage-detail { color: var(--muted); font-size: 0.82rem; }
-  @keyframes fadein { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-  .report {
-    white-space: pre-wrap;
-    line-height: 1.55;
-    font-size: 0.95rem;
-  }
-  .citations {
-    margin-top: 14px;
-    padding-top: 14px;
-    border-top: 1px solid var(--border);
-    font-size: 0.82rem;
-    color: var(--muted);
-  }
-  .citations a { color: var(--accent); }
   .status-pill {
     display: inline-block;
     padding: 3px 10px;
@@ -135,10 +110,308 @@
     font-size: 0.78rem;
     font-weight: 600;
   }
-  .status-pill.running { background: rgba(91,140,255,0.18); color: var(--accent); }
-  .status-pill.completed { background: rgba(76,175,125,0.18); color: var(--ok); }
+  .status-pill.running { background: var(--accent-soft); color: var(--accent); }
+  .status-pill.completed { background: var(--ok-soft); color: var(--ok); }
   .status-pill.budget_exceeded { background: rgba(217,164,65,0.18); color: var(--warn); }
   .status-pill.error { background: rgba(224,96,90,0.18); color: var(--err); }
+
+  /* ---- collapsible panels ---- */
+  details.panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  details.panel > summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    user-select: none;
+  }
+  details.panel > summary::-webkit-details-marker { display: none; }
+  details.panel > summary .panel-title {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    font-weight: 650;
+  }
+  details.panel > summary .chevron {
+    color: var(--muted);
+    transition: transform 0.15s ease;
+    font-size: 0.75rem;
+  }
+  details.panel[open] > summary .chevron { transform: rotate(90deg); }
+  details.panel > summary .trace-live-summary {
+    font-size: 0.8rem;
+    color: var(--muted);
+    flex: 1;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .panel-body { padding: 4px 20px 18px; }
+
+  /* ---- trace ---- */
+  .trace-entry {
+    padding: 10px 0;
+    border-top: 1px solid var(--border);
+  }
+  .trace-list > .trace-entry:first-child { border-top: none; }
+  .trace-entry-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .trace-icon {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    margin-top: 1px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .trace-icon .spinner {
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    border: 2px solid var(--accent-soft);
+    border-top-color: var(--accent);
+    animation: spin 0.8s linear infinite;
+  }
+  .trace-icon .check {
+    color: var(--ok);
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+  .trace-icon .fail {
+    color: var(--err);
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .trace-main { flex: 1; min-width: 0; }
+  .trace-title-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .trace-label {
+    font-weight: 650;
+    font-size: 0.9rem;
+  }
+  .trace-badge {
+    font-size: 0.7rem;
+    color: var(--muted);
+    background: var(--panel-raised);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+  }
+  .trace-stat {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-left: auto;
+    white-space: nowrap;
+  }
+  .trace-thought {
+    margin: 4px 0 0;
+    font-size: 0.86rem;
+    color: var(--text);
+    line-height: 1.5;
+  }
+  .trace-thought:empty { display: none; }
+  .trace-children {
+    margin: 8px 0 0 28px;
+    padding-left: 12px;
+    border-left: 2px solid var(--border);
+  }
+  .trace-children .trace-entry { padding: 6px 0; }
+  .trace-children .trace-thought { font-size: 0.82rem; color: var(--muted); }
+  .trace-raw {
+    margin-top: 6px;
+  }
+  .trace-raw summary {
+    cursor: pointer;
+    font-size: 0.72rem;
+    color: var(--muted);
+    list-style: none;
+  }
+  .trace-raw summary::-webkit-details-marker { display: none; }
+  .trace-raw summary::before { content: "› "; }
+  .trace-raw[open] summary::before { content: "⌄ "; }
+  .trace-raw pre {
+    font-size: 0.72rem;
+    background: var(--code-bg);
+    border-radius: 6px;
+    padding: 8px 10px;
+    overflow-x: auto;
+    margin: 6px 0 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  details.wave-group {
+    margin: 12px 0 2px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel-raised);
+    overflow: hidden;
+  }
+  details.wave-group > summary {
+    list-style: none;
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    color: var(--muted);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  details.wave-group > summary::-webkit-details-marker { display: none; }
+  details.wave-group > summary .wave-chevron {
+    transition: transform 0.15s ease;
+    font-size: 0.68rem;
+  }
+  details.wave-group[open] > summary .wave-chevron { transform: rotate(90deg); }
+  details.wave-group > summary .wave-status {
+    margin-left: auto;
+    font-size: 0.7rem;
+    text-transform: none;
+    letter-spacing: normal;
+  }
+  details.wave-group > .wave-body {
+    padding: 0 10px;
+    background: var(--panel);
+  }
+  details.wave-group > .wave-body > .trace-entry:first-child { border-top: none; }
+
+  /* ---- report ---- */
+  .report-markdown {
+    font-size: 0.95rem;
+    line-height: 1.65;
+  }
+  .report-markdown h1, .report-markdown h2, .report-markdown h3 {
+    font-weight: 650;
+    line-height: 1.35;
+    margin: 1.1em 0 0.4em;
+  }
+  .report-markdown h1:first-child, .report-markdown h2:first-child, .report-markdown h3:first-child { margin-top: 0; }
+  .report-markdown h1 { font-size: 1.3rem; }
+  .report-markdown h2 { font-size: 1.1rem; }
+  .report-markdown h3 { font-size: 1rem; }
+  .report-markdown p { margin: 0.7em 0; }
+  .report-markdown ul, .report-markdown ol { margin: 0.6em 0; padding-left: 1.4em; }
+  .report-markdown li { margin: 0.25em 0; }
+  .report-markdown blockquote {
+    margin: 0.7em 0;
+    padding: 2px 14px;
+    border-left: 3px solid var(--border);
+    color: var(--muted);
+  }
+  .report-markdown code {
+    background: var(--code-bg);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 0.85em;
+  }
+  .report-markdown pre {
+    background: var(--code-bg);
+    border-radius: 8px;
+    padding: 10px 12px;
+    overflow-x: auto;
+  }
+  .report-markdown pre code { background: none; padding: 0; }
+  .report-markdown table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 0.8em 0;
+    font-size: 0.88rem;
+  }
+  .report-markdown th, .report-markdown td {
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    text-align: left;
+  }
+  .report-markdown th { background: var(--panel-raised); }
+  .report-markdown a { color: var(--accent); }
+  .report-markdown hr { border: none; border-top: 1px solid var(--border); margin: 1.2em 0; }
+
+  a.cite-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.35em;
+    height: 1.35em;
+    padding: 0 4px;
+    margin: 0 1px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 0.72em;
+    font-weight: 700;
+    text-decoration: none;
+    vertical-align: super;
+    cursor: pointer;
+  }
+  a.cite-chip:hover { background: var(--accent); color: white; }
+
+  .sources {
+    margin-top: 14px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .sources:empty { display: none; }
+  a.source-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    max-width: 220px;
+    padding: 3px 9px 3px 4px;
+    border-radius: 999px;
+    background: var(--panel-raised);
+    border: 1px solid var(--border);
+    text-decoration: none;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+  }
+  a.source-card:hover { border-color: var(--accent); }
+  a.source-card.flash { background: var(--accent-soft); border-color: var(--accent); }
+  .source-index {
+    flex: none;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 999px;
+    min-width: 1.3em;
+    height: 1.3em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .source-title {
+    color: var(--text);
+    font-size: 0.78rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
   .empty { color: var(--muted); font-size: 0.9rem; }
 </style>
 </head>
@@ -152,58 +425,435 @@
     <button type="submit" id="submit">Run</button>
   </form>
 
-  <div class="panel" id="status-panel" style="display:none;">
-    <h2>Run</h2>
+  <div class="run-header" id="run-header" style="display:none;">
+    <h2 id="run-question"></h2>
     <div class="meta-row" id="meta-row"></div>
   </div>
 
-  <div class="panel" id="trace-panel" style="display:none;">
-    <h2>Trace</h2>
-    <ul class="trace" id="trace-list"></ul>
-  </div>
+  <details class="panel" id="trace-panel" open style="display:none;">
+    <summary>
+      <span class="panel-title">Trace</span>
+      <span class="trace-live-summary" id="trace-live-summary"></span>
+      <span class="chevron" aria-hidden="true">▸</span>
+    </summary>
+    <div class="panel-body">
+      <div class="trace-list" id="trace-list"></div>
+    </div>
+  </details>
 
-  <div class="panel" id="report-panel" style="display:none;">
-    <h2>Report</h2>
-    <div class="report" id="report-text"></div>
-    <div class="citations" id="citations"></div>
-  </div>
+  <details class="panel" id="report-panel" open style="display:none;">
+    <summary>
+      <span class="panel-title">Report</span>
+      <span class="chevron" aria-hidden="true">▸</span>
+    </summary>
+    <div class="panel-body">
+      <div class="report-markdown" id="report-markdown"></div>
+      <div class="sources" id="sources"></div>
+    </div>
+  </details>
 </div>
 
+<script src="vendor/marked.js"></script>
+<script src="vendor/purify.min.js"></script>
 <script>
+"use strict";
+
+/* ==========================================================================
+   Trace state — a pure reducer (applyEvent) over the raw SSE events, kept
+   separate from DOM rendering so the event -> structure logic is testable
+   in isolation. stage_start/stage_complete pairs are correlated by
+   `stage_id`; nested ReAct-loop stages (agent_step, finalize_finding,
+   verify — see agent/graph.py, agent/react_agent.py) are attached under
+   whichever top-level "subagent" entry has the matching bare node_id
+   currently in flight (agent_step/finalize_finding carry node_id as
+   "{node_id}_r{attempt}" — AgentContext.source_id_prefix — verify carries
+   the bare node_id directly).
+   ========================================================================== */
+
+const TOP_LEVEL_STAGES = new Set(["plan", "subagent", "synthesis", "reflection"]);
+
+function initTraceState() {
+  return {
+    entries: new Map(),      // stageId -> entry
+    order: [],               // top-level stageIds, arrival order
+    childrenOf: new Map(),   // top-level stageId -> [childStageId...]
+    openByNodeId: new Map(), // bare node_id -> currently in-flight top-level stageId
+    waveOpen: new Map(),        // wave number -> open/collapsed (missing == open, the default)
+    waveUserTouched: new Set(), // wave numbers the user manually toggled -- auto-collapse must never fight that
+  };
+}
+
+function parentNodeIdFor(stage, nodeId) {
+  if (nodeId == null) return null;
+  if (stage === "agent_step" || stage === "finalize_finding") {
+    return nodeId.replace(/_r\d+$/, "");
+  }
+  return nodeId; // verify already carries the bare node_id
+}
+
+function applyEvent(state, event) {
+  if (event.type === "stage_start") {
+    const entry = {
+      stageId: event.stage_id,
+      stage: event.stage,
+      name: event.name,
+      nodeId: event.node_id ?? null,
+      wave: event.wave ?? null,
+      input: event.input ?? null,
+      output: null,
+      status: "running",
+      tokensIn: null, tokensOut: null, costUsd: null, latencyMs: null,
+    };
+    state.entries.set(entry.stageId, entry);
+    if (TOP_LEVEL_STAGES.has(entry.stage)) {
+      state.order.push(entry.stageId);
+      state.childrenOf.set(entry.stageId, []);
+      if (entry.nodeId != null) state.openByNodeId.set(entry.nodeId, entry.stageId);
+    } else {
+      const parentNodeId = parentNodeIdFor(entry.stage, entry.nodeId);
+      const parentStageId = parentNodeId != null ? state.openByNodeId.get(parentNodeId) : undefined;
+      if (parentStageId != null && state.childrenOf.has(parentStageId)) {
+        state.childrenOf.get(parentStageId).push(entry.stageId);
+      } else {
+        // No open parent found (shouldn't normally happen) -- surface at
+        // top level rather than silently dropping the event.
+        state.order.push(entry.stageId);
+        state.childrenOf.set(entry.stageId, []);
+      }
+    }
+  } else if (event.type === "stage_complete") {
+    const entry = state.entries.get(event.stage_id);
+    if (!entry) return state; // defensive: complete with no matching start
+    entry.status = "done";
+    entry.output = event.output ?? null;
+    entry.tokensIn = event.tokens_in;
+    entry.tokensOut = event.tokens_out;
+    entry.costUsd = event.cost_usd;
+    entry.latencyMs = event.latency_ms;
+  }
+  return state;
+}
+
+/* ==========================================================================
+   Wave grouping + auto-collapse.
+
+   Consecutive top-level "subagent" entries sharing a wave number are
+   rendered inside one collapsible <details class="wave-group">. "Collapse
+   the previous wave once the current wave finishes": whenever every entry
+   (and nested child) in wave W reaches "done", wave W-1 auto-collapses --
+   unless the user already manually toggled it, which always wins over the
+   automatic behavior.
+   ========================================================================== */
+
+function groupIntoSegments(state) {
+  const segments = [];
+  let currentWaveSegment = null;
+  for (const stageId of state.order) {
+    const entry = state.entries.get(stageId);
+    if (entry.stage === "subagent" && entry.wave != null) {
+      if (!currentWaveSegment || currentWaveSegment.wave !== entry.wave) {
+        currentWaveSegment = { type: "wave", wave: entry.wave, stageIds: [] };
+        segments.push(currentWaveSegment);
+      }
+      currentWaveSegment.stageIds.push(stageId);
+    } else {
+      currentWaveSegment = null;
+      segments.push({ type: "single", stageId });
+    }
+  }
+  return segments;
+}
+
+function isEntryFullyDone(state, stageId) {
+  const entry = state.entries.get(stageId);
+  if (entry.status !== "done") return false;
+  return (state.childrenOf.get(stageId) || []).every((cid) => isEntryFullyDone(state, cid));
+}
+
+function autoCollapseFinishedWaves(state) {
+  const segments = groupIntoSegments(state).filter((s) => s.type === "wave");
+  for (const seg of segments) {
+    const fullyDone = seg.stageIds.every((id) => isEntryFullyDone(state, id));
+    if (!fullyDone) continue;
+    const prevWave = seg.wave - 1;
+    const hasPrevWave = segments.some((s) => s.wave === prevWave);
+    if (hasPrevWave && !state.waveUserTouched.has(prevWave)) {
+      state.waveOpen.set(prevWave, false);
+    }
+  }
+}
+
+/* ==========================================================================
+   Trace -> human narration
+   ========================================================================== */
+
+function labelFor(entry) {
+  switch (entry.stage) {
+    case "plan": return "Plan";
+    case "subagent": return `Research · ${entry.nodeId ?? ""}`;
+    case "verify": return `Verify · ${entry.nodeId ?? ""}`;
+    case "synthesis": return "Synthesis";
+    case "reflection": return "Reflection";
+    case "agent_step": return "Reasoning step";
+    case "finalize_finding": return "Write up finding";
+    default: return entry.stage;
+  }
+}
+
+function pluralize(n, noun) { return `${n} ${noun}${n === 1 ? "" : "s"}`; }
+
+function describeEntry(entry) {
+  const out = entry.output || {};
+  const inp = entry.input || {};
+  const done = entry.status === "done";
+  switch (entry.stage) {
+    case "plan":
+      if (!done) return "Reading the question…";
+      return [
+        out.interpretation,
+        out.strategy,
+        Array.isArray(out.sub_questions)
+          ? `Decomposed into ${pluralize(out.sub_questions.length, "sub-question")}.`
+          : "",
+      ].filter(Boolean).join(" ");
+    case "subagent":
+      if (!done) return `Researching: ${inp.question || ""}`;
+      return out.reasoning || out.answer || "No answer produced.";
+    case "verify":
+      if (!done) return "Checking whether the answer is grounded in the sources…";
+      return out.grounded
+        ? "Grounded in the retrieved sources."
+        : `Not grounded — ${out.reason || "retrying"}.`;
+    case "synthesis":
+      return done ? "Report drafted from the research findings." : "Drafting the report…";
+    case "reflection":
+      if (!done) return "Checking the final report for gaps…";
+      if (out.has_gaps) {
+        const n = Array.isArray(out.followup_questions) ? out.followup_questions.length : 0;
+        return [out.rationale, n ? `Researching ${pluralize(n, "follow-up question")}.` : ""]
+          .filter(Boolean).join(" ");
+      }
+      return out.rationale || "No further gaps found.";
+    case "agent_step":
+      if (!done) return "Thinking…";
+      if (out.tool_calls) return `Called ${pluralize(out.tool_calls, "tool")}.`;
+      return out.content ? "Reasoned without calling a tool." : "";
+    case "finalize_finding":
+      if (!done) return "Writing up the finding…";
+      return out.reasoning || out.answer || "";
+    default:
+      return "";
+  }
+}
+
+function statTextFor(entry) {
+  if (entry.status !== "done") return "";
+  const parts = [];
+  if (typeof entry.latencyMs === "number") parts.push(`${(entry.latencyMs / 1000).toFixed(1)}s`);
+  if (typeof entry.costUsd === "number" && entry.costUsd > 0) parts.push(`$${entry.costUsd.toFixed(5)}`);
+  return parts.join(" · ");
+}
+
+/* ==========================================================================
+   Trace -> DOM. Full re-render on every event -- the trace is small (tens
+   of entries per run), so this is simpler and less bug-prone than
+   incremental DOM patching.
+   ========================================================================== */
+
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function renderTraceEntryHtml(entry, state) {
+  const done = entry.status === "done";
+  const iconHtml = done
+    ? `<span class="check" aria-hidden="true">✓</span>`
+    : `<span class="spinner" aria-hidden="true"></span>`;
+  // wave is no longer shown per-entry -- its enclosing wave-group <details>
+  // header (see renderWaveGroupHtml) already carries it.
+  const statHtml = statTextFor(entry);
+  const thought = escapeHtml(describeEntry(entry));
+  const children = (state.childrenOf.get(entry.stageId) || [])
+    .map((cid) => renderTraceEntryHtml(state.entries.get(cid), state))
+    .join("");
+  const rawInput = entry.input ? JSON.stringify(entry.input, null, 2) : null;
+  const rawOutput = entry.output ? JSON.stringify(entry.output, null, 2) : null;
+  const rawHtml = (rawInput || rawOutput)
+    ? `<details class="trace-raw"><summary>Details</summary>
+        ${rawInput ? `<pre>${escapeHtml(rawInput)}</pre>` : ""}
+        ${rawOutput ? `<pre>${escapeHtml(rawOutput)}</pre>` : ""}
+      </details>`
+    : "";
+  return `
+    <div class="trace-entry" data-status="${done ? "done" : "running"}" role="status">
+      <div class="trace-entry-head">
+        <span class="trace-icon">${iconHtml}</span>
+        <div class="trace-main">
+          <div class="trace-title-row">
+            <span class="trace-label">${escapeHtml(labelFor(entry))}</span>
+            <span class="trace-stat">${escapeHtml(statHtml)}</span>
+          </div>
+          <p class="trace-thought">${thought}</p>
+          ${rawHtml}
+          ${children ? `<div class="trace-children">${children}</div>` : ""}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderWaveGroupHtml(state, seg) {
+  const entries = seg.stageIds.map((id) => state.entries.get(id));
+  const doneCount = entries.filter((e) => e.status === "done").length;
+  const status = doneCount === entries.length ? `${pluralize(doneCount, "node")} done` : `${doneCount}/${entries.length} done`;
+  const open = state.waveOpen.get(seg.wave) !== false; // missing -> open (the default)
+  const body = entries.map((e) => renderTraceEntryHtml(e, state)).join("");
+  return `
+    <details class="wave-group" data-wave="${seg.wave}" ${open ? "open" : ""}>
+      <summary>
+        <span class="wave-chevron" aria-hidden="true">▸</span>
+        <span>Wave ${seg.wave}</span>
+        <span class="wave-status">${escapeHtml(status)}</span>
+      </summary>
+      <div class="wave-body">${body}</div>
+    </details>
+  `;
+}
+
+function renderTrace(state, container, liveSummaryEl) {
+  autoCollapseFinishedWaves(state);
+  let html = "";
+  for (const seg of groupIntoSegments(state)) {
+    html += seg.type === "wave"
+      ? renderWaveGroupHtml(state, seg)
+      : renderTraceEntryHtml(state.entries.get(seg.stageId), state);
+  }
+  container.innerHTML = html;
+
+  const running = state.order.map((id) => state.entries.get(id)).filter((e) => e.status === "running");
+  if (running.length) {
+    liveSummaryEl.textContent = describeEntry(running[running.length - 1]).slice(0, 80);
+  } else if (state.order.length) {
+    liveSummaryEl.textContent = "done";
+  } else {
+    liveSummaryEl.textContent = "";
+  }
+}
+
+/* ==========================================================================
+   Report markdown + citation chips.
+
+   Citation markers ([src_xxx]) are swapped for Private-Use-Area-delimited
+   placeholders BEFORE markdown parsing (so marked never has a chance to
+   interpret the brackets as link syntax), parsed + sanitized as ordinary
+   text, then the placeholders are swapped for the real <a class="cite-chip">
+   markup as a final exact string substitution -- the chip markup itself is
+   built from this app's own structured citation data (source_id/title/url
+   from Report.citations), not from the model's raw report text, and never
+   passes through DOMPurify itself since it's trusted output, not input.
+   ========================================================================== */
+
+const CITE_OPEN = "";
+const CITE_CLOSE = "";
+
+function attrEscape(s) {
+  return String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function chipHtmlFor(c) {
+  return `<a class="cite-chip" href="#src-${attrEscape(c.source_id)}" data-source-id="${attrEscape(c.source_id)}" title="${attrEscape(c.title)}">${c.index}</a>`;
+}
+
+function citationPlaceholders(text, citations) {
+  const bySourceId = new Map((citations || []).map((c, i) => [c.source_id, { ...c, index: i + 1 }]));
+  const chipHtmlByPlaceholder = new Map();
+  // Matches both the documented single-id form ([src_x]) and a multi-id
+  // form some models emit for a claim backed by more than one source
+  // ([src_x, src_y, src_z]) -- confirmed live (synthesis_v1.txt only asks
+  // for one id per marker, but doesn't forbid several, and a real run
+  // produced exactly this). Each id inside the bracket becomes its own chip.
+  const withPlaceholders = text.replace(/\[((?:src_[A-Za-z0-9_]+)(?:\s*,\s*src_[A-Za-z0-9_]+)*)\]/g, (whole, idsBlock) => {
+    const ids = idsBlock.split(",").map((s) => s.trim());
+    let combinedPlaceholder = "";
+    let anyKnown = false;
+    for (const sid of ids) {
+      const c = bySourceId.get(sid);
+      if (!c) continue; // unknown source id -- silently skipped, not left as raw text (see fallback below)
+      anyKnown = true;
+      const placeholder = CITE_OPEN + sid + CITE_CLOSE;
+      if (!chipHtmlByPlaceholder.has(placeholder)) chipHtmlByPlaceholder.set(placeholder, chipHtmlFor(c));
+      combinedPlaceholder += placeholder;
+    }
+    return anyKnown ? combinedPlaceholder : whole; // no known ids at all -- leave the literal bracket text alone
+  });
+  return { withPlaceholders, chipHtmlByPlaceholder };
+}
+
+function renderReportHtml(text, citations) {
+  const { withPlaceholders, chipHtmlByPlaceholder } = citationPlaceholders(text || "", citations);
+  const rawHtml = marked.parse(withPlaceholders, { breaks: true });
+  const safeHtml = DOMPurify.sanitize(rawHtml);
+  let finalHtml = safeHtml;
+  for (const [placeholder, chip] of chipHtmlByPlaceholder) {
+    finalHtml = finalHtml.split(placeholder).join(chip);
+  }
+  return finalHtml;
+}
+
+function hostnameOf(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; }
+}
+
+function renderSourcesHtml(citations) {
+  if (!citations || !citations.length) return "";
+  // One compact wrapping pill per source (index + truncated title; full
+  // title + domain in the tooltip) rather than a stacked two-line row per
+  // source -- a report with 8-10 citations used to run 300-400px tall.
+  return citations.map((c, i) => `
+    <a class="source-card" id="src-${attrEscape(c.source_id)}" href="${attrEscape(c.url)}" target="_blank" rel="noopener noreferrer" title="${attrEscape((c.title || c.url) + " — " + hostnameOf(c.url))}">
+      <span class="source-index">${i + 1}</span><span class="source-title">${escapeHtml(c.title || hostnameOf(c.url))}</span>
+    </a>
+  `).join("");
+}
+
+/* ==========================================================================
+   Wiring
+   ========================================================================== */
+
 const form = document.getElementById("form");
 const questionInput = document.getElementById("question");
 const submitBtn = document.getElementById("submit");
-const statusPanel = document.getElementById("status-panel");
+const runHeader = document.getElementById("run-header");
+const runQuestionEl = document.getElementById("run-question");
 const metaRow = document.getElementById("meta-row");
 const tracePanel = document.getElementById("trace-panel");
 const traceList = document.getElementById("trace-list");
+const traceLiveSummary = document.getElementById("trace-live-summary");
 const reportPanel = document.getElementById("report-panel");
-const reportText = document.getElementById("report-text");
-const citationsEl = document.getElementById("citations");
+const reportMarkdownEl = document.getElementById("report-markdown");
+const sourcesEl = document.getElementById("sources");
 
 let es = null;
+let traceState = initTraceState();
 
 function statusPill(text, cls) {
   return `<span class="status-pill ${cls}">${text}</span>`;
 }
 
-function resetPanels() {
+function resetPanels(question) {
+  traceState = initTraceState();
   traceList.innerHTML = "";
-  reportText.textContent = "";
-  citationsEl.innerHTML = "";
+  traceLiveSummary.textContent = "";
+  reportMarkdownEl.innerHTML = "";
+  sourcesEl.innerHTML = "";
   metaRow.innerHTML = "";
-  statusPanel.style.display = "block";
+  runQuestionEl.textContent = question;
+  runHeader.style.display = "block";
   tracePanel.style.display = "block";
+  tracePanel.open = true;
   reportPanel.style.display = "none";
-}
-
-function addTraceRow(stage, name, latencyMs, costUsd) {
-  const li = document.createElement("li");
-  li.innerHTML = `
-    <span class="stage-name">${stage}${name && name !== stage ? " · " + name : ""}</span>
-    <span class="stage-detail">${(latencyMs / 1000).toFixed(1)}s · $${costUsd.toFixed(5)}</span>
-  `;
-  traceList.appendChild(li);
 }
 
 form.addEventListener("submit", (e) => {
@@ -212,11 +862,16 @@ form.addEventListener("submit", (e) => {
   if (!question) return;
 
   if (es) es.close();
-  resetPanels();
+  resetPanels(question);
   submitBtn.disabled = true;
   metaRow.innerHTML = statusPill("starting…", "running");
 
-  const url = "/research/stream?question=" + encodeURIComponent(question);
+  // report_style: "report" -- the eval harness/CI default is "concise"
+  // (deepresearch/config.py: what ci_baselines is scored against), so the
+  // live UI opts into the structured multi-section report explicitly here
+  // rather than by changing that default.
+  const runConfig = encodeURIComponent(JSON.stringify({ report_style: "report" }));
+  const url = "/research/stream?question=" + encodeURIComponent(question) + "&config=" + runConfig;
   es = new EventSource(url);
 
   es.addEventListener("run_started", (ev) => {
@@ -224,9 +879,14 @@ form.addEventListener("submit", (e) => {
     metaRow.innerHTML = `${statusPill("running", "running")} <code>run_id: ${data.run_id}</code>`;
   });
 
+  es.addEventListener("stage_start", (ev) => {
+    applyEvent(traceState, JSON.parse(ev.data));
+    renderTrace(traceState, traceList, traceLiveSummary);
+  });
+
   es.addEventListener("stage_complete", (ev) => {
-    const data = JSON.parse(ev.data);
-    addTraceRow(data.stage, data.name, data.latency_ms, data.cost_usd);
+    applyEvent(traceState, JSON.parse(ev.data));
+    renderTrace(traceState, traceList, traceLiveSummary);
   });
 
   es.addEventListener("done", (ev) => {
@@ -239,17 +899,12 @@ form.addEventListener("submit", (e) => {
       <span>${data.total_tokens_in + data.total_tokens_out} tokens</span>
       <span>${data.iterations} iteration${data.iterations === 1 ? "" : "s"}</span>
     `;
+    reportPanel.style.display = "block";
     if (data.report && data.report.text) {
-      reportPanel.style.display = "block";
-      reportText.textContent = data.report.text;
-      if (data.report.citations && data.report.citations.length) {
-        citationsEl.innerHTML = "Sources: " + data.report.citations
-          .map((c) => `<a href="${c.url}" target="_blank" rel="noopener">[${c.source_id}] ${c.title}</a>`)
-          .join(" &middot; ");
-      }
+      reportMarkdownEl.innerHTML = renderReportHtml(data.report.text, data.report.citations || []);
+      sourcesEl.innerHTML = renderSourcesHtml(data.report.citations || []);
     } else {
-      reportPanel.style.display = "block";
-      reportText.innerHTML = '<span class="empty">No report was produced (budget exhausted before synthesis).</span>';
+      reportMarkdownEl.innerHTML = '<span class="empty">No report was produced (budget exhausted before synthesis).</span>';
     }
     submitBtn.disabled = false;
     es.close();
@@ -265,7 +920,7 @@ form.addEventListener("submit", (e) => {
   es.onerror = () => {
     // A native EventSource "error" also fires on a clean server-closed
     // stream (no more retries expected) - only surface it if we never
-    // got a "done"/"error_event" (i.e. the connection dropped mid-run).
+    // got a "done"/"run_error" (i.e. the connection dropped mid-run).
     if (submitBtn.disabled) {
       metaRow.innerHTML += ` ${statusPill("connection closed", "error")}`;
       submitBtn.disabled = false;
@@ -273,6 +928,30 @@ form.addEventListener("submit", (e) => {
     es.close();
   };
 });
+
+document.addEventListener("click", (e) => {
+  const chip = e.target.closest("a.cite-chip");
+  if (!chip) return;
+  const target = document.getElementById("src-" + chip.dataset.sourceId);
+  if (!target) return;
+  e.preventDefault();
+  target.scrollIntoView({ behavior: "smooth", block: "center" });
+  target.classList.add("flash");
+  setTimeout(() => target.classList.remove("flash"), 1200);
+});
+
+// The native "toggle" event on <details> does not bubble, but it IS caught
+// by a capturing-phase listener on an ancestor -- one listener here (rather
+// than re-attaching to every wave-group <details> after each full
+// traceList.innerHTML rebuild) records manual user toggles so
+// autoCollapseFinishedWaves() never fights a choice the user just made.
+traceList.addEventListener("toggle", (e) => {
+  const el = e.target;
+  if (!(el instanceof HTMLElement) || !el.classList.contains("wave-group")) return;
+  const wave = Number(el.dataset.wave);
+  traceState.waveUserTouched.add(wave);
+  traceState.waveOpen.set(wave, el.open);
+}, true);
 </script>
 </body>
 </html>

@@ -38,6 +38,9 @@ class RecordingChatModel:
     def bind_tools(self, tools):
         return self
 
+    def bind(self, **kwargs):
+        return self
+
     async def ainvoke(self, messages):
         msg = AIMessage(content="done", tool_calls=[])
         msg.usage_metadata = {"input_tokens": 5, "output_tokens": 5}
@@ -72,7 +75,7 @@ def _initial_state(started: float) -> MultihopState:
         "question": "test question", "plan": Plan(sub_questions=[]), "findings": [],
         "source_registry": {}, "verified_ids": {}, "failed_ids": {}, "node_corrections": {},
         "tokens_in": 0, "tokens_out": 0, "cost_usd": 0.0, "started_monotonic": started,
-        "report": None, "reflection_iters": 0, "should_continue": False,
+        "report": None, "reflection_iters": 0, "should_continue": False, "wave": 0,
     }
 
 

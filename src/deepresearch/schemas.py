@@ -12,6 +12,11 @@ class SubQuestion(BaseModel):
 
 
 class Plan(BaseModel):
+    # Both default to "" so a Plan deserialized from a pre-Phase-2 stored row
+    # (trajectories.output / RunResult.plan JSON predating these fields)
+    # still validates -- additive, not a breaking schema change.
+    interpretation: str = ""  # how the planner read the question
+    strategy: str = ""  # why it was decomposed this way (parallel vs. sequential, node count)
     sub_questions: list[SubQuestion]
 
 
@@ -45,6 +50,7 @@ class Finding(BaseModel):
     node_id: str
     question: str
     answer: str
+    reasoning: str = ""  # brief note on how this node's ReAct loop got to the answer
     claims: list[Claim]
     entities_extracted: dict[str, str] = Field(default_factory=dict)
     confidence: float

@@ -46,6 +46,9 @@ class RecordingChatModel:
     def bind_tools(self, tools):
         return self
 
+    def bind(self, **kwargs):
+        return self
+
     async def ainvoke(self, messages):
         human = next(m for m in messages if isinstance(m, HumanMessage))
         self.briefs.append(human.content)
@@ -123,7 +126,7 @@ async def _run_graph(nodes, findings_by_question, *, verify_by_question=None, co
         "question": "test question", "plan": Plan(sub_questions=[]), "findings": [],
         "source_registry": {}, "verified_ids": {}, "failed_ids": {}, "node_corrections": {},
         "tokens_in": 0, "tokens_out": 0, "cost_usd": 0.0, "started_monotonic": time.monotonic(),
-        "report": None, "reflection_iters": 0, "should_continue": False,
+        "report": None, "reflection_iters": 0, "should_continue": False, "wave": 0,
     }
     graph = build_multihop_graph()
     final_state = await graph.ainvoke(initial, config={"recursion_limit": recursion_limit_for(config)}, context=ctx)
@@ -159,6 +162,42 @@ async def test_dependent_hop_waits_for_both_upstreams_and_gets_injected_facts():
     # n3's brief must contain BOTH upstream answers -- proof facts_for()
     # injected them, and proof n3 only ran after n1 AND n2 were verified.
     assert any("Mauro Scocco" in b and "Joakim Berg" in b for b in chat_model.briefs)
+    # n1 and n2 fan out together (both depends_on: []) -- regression guard
+    # for a bug where a conditional edge wired directly off "subagent" (no
+    # join node) fired supervisor_router once PER BRANCH, each branch seeing
+    # only its own write and re-dispatching every other not-yet-verified
+    # node. That produced 6 subagent dispatches here instead of 3 -- silently
+    # deduped away by _ordered_findings' last-write-wins, so only a dispatch
+    # count (not the final node_ids set above) catches it.
+    assert len(chat_model.briefs) == 3
+
+
+@pytest.mark.asyncio
+async def test_four_wide_independent_fanout_dispatches_each_node_exactly_once():
+    """N independent leaf nodes (no depends_on, nothing depends on any of
+    them) fanned out from "plan" in a single wave -- the exact shape of a
+    real production trace that showed subagent:n1..n4 running 4x each (16
+    dispatches for 4 nodes) before the supervisor join-node fix. Leaves are
+    feeds_hop=False, so they skip verify entirely and go straight to
+    verified_ids on their first (only) attempt -- isolates the fan-out
+    dispatch count from any verify-retry interaction."""
+    nodes = [
+        {"id": "n1", "question": "Q1", "depends_on": []},
+        {"id": "n2", "question": "Q2", "depends_on": []},
+        {"id": "n3", "question": "Q3", "depends_on": []},
+        {"id": "n4", "question": "Q4", "depends_on": []},
+    ]
+    findings = {
+        f"Q{i}": {"answer": f"a{i}", "claims": [], "entities_extracted": {}, "confidence": 0.9, "open_gaps": []}
+        for i in range(1, 5)
+    }
+
+    final_state, chat_model, _ = await _run_graph(nodes, findings)
+
+    assert final_state["report"] is not None
+    node_ids = [f.node_id for f in final_state["findings"]]
+    assert sorted(node_ids) == ["n1", "n2", "n3", "n4"]
+    assert len(chat_model.briefs) == 4
 
 
 @pytest.mark.asyncio

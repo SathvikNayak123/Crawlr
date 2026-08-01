@@ -139,6 +139,18 @@ class RunConfig:
     judge_model: str = field(default_factory=lambda: os.getenv("DEEPRESEARCH_JUDGE_MODEL", "claude-haiku-4-5"))
     judge_rubric_version: str = "v1"
 
+    # Synthesis output shape (agent/synthesis.py): "concise" (default) is
+    # what eval/run_eval.py, eval/benchmarks/*, and every stored
+    # ci_baselines row is scored against — FRAMES/MuSiQue accuracy and
+    # citation precision all move if this changes, so nothing in the eval
+    # harness overrides it. "report" produces a structured multi-section
+    # markdown report (headings, a comparison table when the findings
+    # support one, a limitations section) instead of one terse paragraph —
+    # the live UI (ui/index.html) opts into it explicitly per-request via
+    # the /research/stream `config` query param. Don't flip the default
+    # here without a fresh ci_baselines run first.
+    report_style: str = field(default_factory=lambda: os.getenv("DEEPRESEARCH_REPORT_STYLE", "concise"))
+
     @classmethod
     def from_overrides(cls, overrides: dict | None = None) -> "RunConfig":
         cfg = cls()

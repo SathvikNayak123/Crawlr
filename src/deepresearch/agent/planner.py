@@ -34,4 +34,4 @@ async def plan(question: str, config: RunConfig, llm: LLMClient) -> tuple[Plan, 
             file=sys.stderr,
         )
     validate_plan(sub_questions, max_nodes=config.max_nodes)
-    return Plan(sub_questions=sub_questions), usage
+    return Plan(interpretation=result.interpretation, strategy=result.strategy, sub_questions=sub_questions), usage

@@ -30,7 +30,15 @@ from typing_extensions import TypedDict
 
 from pydantic import BaseModel, Field
 
-from deepresearch.agent.react_agent import TOOLS, AgentContext, _agent_route, _evidence_block, _record, agent_node
+from deepresearch.agent.react_agent import (
+    TOOLS,
+    AgentContext,
+    _agent_route,
+    _evidence_block,
+    _record,
+    _record_start,
+    agent_node,
+)
 from deepresearch.backends.base import SearchBackend
 from deepresearch.config import RunConfig
 from deepresearch.llm.client import LLMClient, LLMUsage
@@ -46,6 +54,7 @@ class FindingDraft(BaseModel):
     Finding (node_id, verified) is set by this module, not the model."""
 
     answer: str
+    reasoning: str = ""
     claims: list[Claim]
     entities_extracted: dict[str, str] = Field(default_factory=dict)
     confidence: float
@@ -72,6 +81,11 @@ async def finalize_finding_node(state: SubagentState, runtime) -> dict:
     start = time.monotonic()
     with stage_span("finalize_finding"):
         span_id = current_span_id_hex()
+        _record_start(
+            runtime, "finalize_finding", "finalize_finding",
+            span_id=span_id, input_summary={"question": state["question"]},
+            node_id=ctx.source_id_prefix or None,
+        )
         data, usage = await ctx.llm.complete_structured(
             model=ctx.config.worker_model, system=system, user_content=user_content,
             response_model=FindingDraft, max_tokens=4096,
@@ -81,6 +95,7 @@ async def finalize_finding_node(state: SubagentState, runtime) -> dict:
         runtime, "finalize_finding", "finalize_finding",
         input_summary={"question": state["question"]}, output=data.model_dump(),
         usage=usage, latency_ms=latency_ms, start_dt=start_dt, end_dt=datetime.now(timezone.utc), span_id=span_id,
+        node_id=ctx.source_id_prefix or None,
     )
     return {
         "finding": data,
@@ -163,6 +178,7 @@ async def run_subagent(
         node_id=node.id,
         question=node.question,
         answer=data.answer,
+        reasoning=data.reasoning,
         claims=data.claims,
         entities_extracted=data.entities_extracted,
         confidence=data.confidence,
